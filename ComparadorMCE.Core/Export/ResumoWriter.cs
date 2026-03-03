@@ -6,7 +6,22 @@ namespace ComparadorMCE.Core.Export
     public static class ResumoWriter
     {
         private static bool IsPgSheet(string name)
-    => name.StartsWith("PG_", StringComparison.OrdinalIgnoreCase);
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+
+            var m = System.Text.RegularExpressions.Regex.Match(
+                name.Trim(),
+                @"^PG_(\d{2,4})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (!m.Success) return false;
+
+            if (!int.TryParse(m.Groups[1].Value, out var n)) return false;
+
+            return n >= 16;
+        }
+
+
         public static ExcelWorksheet EnsureResumoAtFirst(ExcelPackage package)
         {
             if (package == null) throw new ArgumentNullException(nameof(package));
@@ -35,8 +50,15 @@ namespace ComparadorMCE.Core.Export
 
             resumo.Cells["A1"].Value = "Planilha";
             resumo.Cells["B1"].Value = "Título da Matriz";
+            resumo.Cells["C1"].Value = "V";
+            resumo.Cells["D1"].Value = "RefDoc";
+            resumo.Cells["E1"].Value = "Interface";
+            resumo.Cells["F1"].Value = "Description";
+            resumo.Cells["G1"].Value = "Voting";
+            resumo.Cells["H1"].Value = "TagNumber";
+            resumo.Cells["I1"].Value = "Delay";
 
-            using (var rng = resumo.Cells["A1:B1"])
+            using (var rng = resumo.Cells["A1:I1"])
             {
                 rng.Style.Font.Bold = true;
                 rng.Style.Fill.PatternType = ExcelFillStyle.Solid;
@@ -44,6 +66,8 @@ namespace ComparadorMCE.Core.Export
             }
 
             int row = 2;
+
+            var analyzer = new ComparadorMCE.Core.Excel.WorksheetAnalyzer();
 
             foreach (var ws in package.Workbook.Worksheets)
             {
@@ -53,14 +77,45 @@ namespace ComparadorMCE.Core.Export
                 if (!IsPgSheet(ws.Name))
                     continue;
 
-                resumo.Cells[row, 1].Value = ws.Name;
-                resumo.Cells[row, 2].Value = TryExtractMatrixTitle(ws) ?? string.Empty;
+                var titulo = TryExtractMatrixTitle(ws) ?? string.Empty;
+                var causes = analyzer.ExtractCauses(ws);
 
-                row++;
+                // se não achou causas, mantém 1 linha só com A/B (útil para rastrear)
+                if (causes.Count == 0)
+                {
+                    resumo.Cells[row, 1].Value = ws.Name;
+                    resumo.Cells[row, 2].Value = titulo;
+                    row++;
+                    continue;
+                }
+
+                foreach (var c in causes)
+                {
+                    resumo.Cells[row, 1].Value = ws.Name;
+                    resumo.Cells[row, 2].Value = titulo;
+
+                    resumo.Cells[row, 3].Value = c.V;
+                    resumo.Cells[row, 4].Value = c.RefDoc;
+                    resumo.Cells[row, 5].Value = c.Interface;
+                    resumo.Cells[row, 6].Value = c.Description;
+                    resumo.Cells[row, 7].Value = c.Voting;
+                    resumo.Cells[row, 8].Value = c.TagNumber;
+                    resumo.Cells[row, 9].Value = c.Delay;
+
+                    row++;
+                }
             }
 
-            resumo.Column(1).Width = 35;
-            resumo.Column(2).Width = 90;
+            resumo.Column(1).Width = 18;   // Planilha
+            resumo.Column(2).Width = 80;   // Título
+            resumo.Column(3).Width = 6;    // V
+            resumo.Column(4).Width = 20;   // RefDoc
+            resumo.Column(5).Width = 22;   // Interface
+            resumo.Column(6).Width = 90;   // Description
+            resumo.Column(7).Width = 18;   // Voting
+            resumo.Column(8).Width = 22;   // TagNumber
+            resumo.Column(9).Width = 12;   // Delay
+
             resumo.View.FreezePanes(2, 1);
         }
 

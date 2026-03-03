@@ -1,119 +1,198 @@
-# Matriz de Causa e Efeito (MCE) — Referência e Plano de Comparação
+# ComparadorMCE --- Matriz de Causa e Efeito (MCE)
 
-## Resumo do arquivo (tabela)
+## 1. Contexto
 
-| Item | Informação |
-|---|---|
-| Tipo de documento | Matriz de Causa e Efeito (MCE) |
-| Início efetivo do conteúdo | Página 16 |
-| Identificação no nome do arquivo | Projeto + Sistema + Disciplina + Versão |
-| Versão | A letra no final do nome do arquivo (ex.: `_U`, `_P`) representa a versão |
-| Planilhas relevantes | `PG_016`, `PG_017`, `PG_018`, ... |
+Projeto para leitura, normalização e futura comparação de Matrizes de
+Causa e Efeito (MCE) em arquivos Excel (P-80 / P-83), utilizando .NET 8
+e EPPlus 8+.
 
----
+O conteúdo efetivo da matriz inicia na página 16.\
+A versão do documento é definida pela letra final no nome do arquivo
+(ex.: `_U`, `_P`, `_E`).
 
-## Mapeamentos de códigos (nome do arquivo)
+------------------------------------------------------------------------
 
-### Projeto
+# 2. Estrutura da Solution
 
-| Código | Projeto |
-|---|---|
-| 3010.2J | P-80 |
-| 3010.2P | P-83 |
+**Solution:** ComparadorMCE
 
-### Sistema
+Projetos:
 
-| Código | Sistema |
-|---|---|
-| 1200 | Topside |
-| 1351 | Hull |
+-   ComparadorMCE (Console / CLI)
+-   ComparadorMCE.Core (Regra de negócio)
+-   GUI (WinForms --- ainda não utilizado)
 
-### Disciplina
+Biblioteca utilizada: - EPPlus 8+
 
-| Código | Disciplina |
-|---|---|
-| KES-001 | Shutdown |
-| KES-002 | Fogo e Gás |
+------------------------------------------------------------------------
 
----
+# 3. Diretório padrão de arquivos
 
-# Estrutura da Planilha PG_xxx
+Raiz default:
 
-Referência estrutural baseada na `PG_016`.
+    C:\Projetos\VisualStudio\ComparadorMCE\resources
 
-## 1) Região de Causas
+Subpastas: - P80 - P83 - OLDS
 
-| Sub-região | Range | Observação |
-|------------|-------|------------|
-| Cabeçalho das causas | B59:AR59 | REF DOC, INTERFACE, DESCRIPTION, VOTING, TAG NUMBER, DELAY |
-| Corpo das causas | B64:AR100 | Linhas reais das causas |
-| Índice lógico das causas | AU61:AU110 | Numeração 1..50 usada na matriz |
+O CLI pode receber caminho por argumento, mas por padrão trabalha nessa
+estrutura.
 
----
+------------------------------------------------------------------------
 
-## 2) Região de Efeitos
+# 4. Escopo Atual Implementado
 
-| Sub-região | Range | Observação |
-|------------|-------|------------|
-| Régua de efeitos (1..50) | AW59:CT59 | Índice horizontal dos efeitos |
-| Labels verticais fixos | AU2:AU56 | SYS, NOTES, INTERFACE, REF DOC, DESCRIPTION, ACTION, TAG NUMBER, DELAY |
-| Cabeçalho vertical dos efeitos | AW2:CT56 | Metadados completos de cada efeito |
+## 4.1 Acesso ao Excel
 
----
+✔ Abertura de arquivo via EPPlus 8+\
+✔ Configuração correta de licença (SetNonCommercialPersonal)\
+✔ Listagem segura das planilhas
 
-## 3) Região de Cruzamento Causa × Efeito
+------------------------------------------------------------------------
 
-| Sub-região | Range | Observação |
-|------------|-------|------------|
-| Matriz lógica | AW61:CT110 | Interseção causa × efeito (X ou vazio) |
+## 4.2 Filtro de Planilhas (Atualizado)
 
----
+A captura é aplicada **somente** às planilhas cujo nome atende ao
+padrão:
 
-# Reconhecimento Estrutural no C# (.NET 8)
+    PG_xxx
 
-O parser deverá identificar três grandes grupos:
+Regras:
 
-1. **Causas**
-   - Detectar linha âncora pelo cabeçalho (`REF DOC`).
-   - Capturar range horizontal até `DELAY`.
-   - Identificar última linha com dados em `REF DOC`.
+-   `xxx` deve ser numérico
+-   `xxx >= 16`
+-   Pode conter sufixos após o número
 
-2. **Efeitos**
-   - Detectar régua 1..N.
-   - Determinar range das colunas de efeitos.
-   - Capturar cabeçalho vertical completo.
+Exemplos válidos:
 
-3. **Cruzamento**
-   - Range delimitado por:
-     - Colunas = mesmas da régua de efeitos.
-     - Linhas = mesmas do índice lógico das causas.
-   - Comparação célula a célula.
+-   PG_016\
+-   PG_016 (3)\
+-   PG_017 aaaaa\
+-   PG_201\
+-   PG_201_REV1
 
----
+Exemplos ignorados:
 
-# Estratégia de Comparação (Macro → Micro)
+-   PG_001_COVER\
+-   PG_002\
+-   Qualquer PG com número \< 16\
+-   Qualquer aba que não comece com PG\_
 
-- Macro:
-  - Número de planilhas `PG_xxx`
-  - Nome das planilhas
-  - Dimensão da matriz (NxM)
+A validação é feita via Regex + parsing numérico.
 
-- Micro:
-  - Hash por linha de causa
-  - Hash por cabeçalho de efeito
-  - Comparação célula a célula no cruzamento
+------------------------------------------------------------------------
 
----
+# 5. Estrutura da Planilha PG_xxx
 
-# Modelo Lógico Sugerido
+Referência baseada em PG_016.
 
-```
-Workbook
- └── Worksheet (PG_xxx)
-      ├── CausesRegion
-      │     └── CauseRow
-      ├── EffectsRegion
-      │     └── EffectColumn
-      └── CauseEffectMatrix
-            └── Cell
-```
+## 5.1 Região de Título da Matriz
+
+-   Faixa central mesclada
+-   Normalmente entre linhas \~50--58
+-   Texto como: "INPUTS FROM INTEGRATOR"
+-   Diferente do cabeçalho de processo
+
+Extração:
+
+-   Busca restrita à faixa da matriz
+-   Prioriza células mescladas
+-   Trata corretamente quebras de linha
+
+------------------------------------------------------------------------
+
+## 5.2 Região de Causas (Implementado)
+
+A região de causas agora é extraída e normalizada corretamente.
+
+### 5.2.1 Detecção Dinâmica de Cabeçalho
+
+O sistema identifica automaticamente o cabeçalho da tabela mesmo quando:
+
+-   Há quebra de linha dentro da célula
+-   Há texto adicional após o rótulo (ex.: "REF DOC I-DE-3010.2P-")
+
+Os seguintes rótulos são detectados via `Contains()`:
+
+-   V
+-   REF DOC
+-   INTERFACE
+-   DESCRIPTION
+-   VOTING
+-   TAG NUMBER
+-   DELAY
+
+------------------------------------------------------------------------
+
+### 5.2.2 Colunas Extraídas
+
+Cada linha válida de causa gera um objeto estruturado contendo:
+
+-   V (valor da legenda, ex.: P)
+-   RefDoc
+-   Interface
+-   Description
+-   Voting
+-   TagNumber
+-   Delay
+-   RowIndex (linha original da planilha)
+
+Critério de linha válida:
+
+-   Coluna V preenchida
+-   Linha contém conteúdo relevante
+
+------------------------------------------------------------------------
+
+## 5.3 Planilha RESUMO (Expandida)
+
+Ao processar um arquivo:
+
+-   Cria ou reutiliza a planilha "RESUMO"
+-   Limpa antes de reprocessar
+-   Lista somente PG_xxx com número \>= 16
+
+### Estrutura Atual do RESUMO
+
+  Coluna   Conteúdo
+  -------- ------------------
+  A        Nome da planilha
+  B        Título da Matriz
+  C        V
+  D        RefDoc
+  E        Interface
+  F        Description
+  G        Voting
+  H        TagNumber
+  I        Delay
+
+Para cada causa encontrada:
+
+-   Colunas A e B são repetidas
+-   Cada causa gera uma nova linha
+
+Se a planilha não possuir causas detectadas, ainda assim é registrada
+uma linha base com A e B.
+
+------------------------------------------------------------------------
+
+# 6. Estado Atual do Projeto
+
+✔ Extração correta de título\
+✔ Filtro correto de PG_xxx \>= 16\
+✔ Extração estruturada da região de causas\
+✔ Normalização robusta de cabeçalhos\
+✔ Geração automática e expandida da planilha RESUMO
+
+------------------------------------------------------------------------
+
+# 7. Próximos Passos
+
+-   Identificação formal de Voting Groups\
+-   Extração estruturada da matriz causa × efeito\
+-   Modelagem completa de efeitos\
+-   Geração de hash por causa\
+-   Estrutura de comparação entre arquivos
+
+------------------------------------------------------------------------
+
+Projeto em fase de consolidação da captura estrutural.
